@@ -1,5 +1,21 @@
 local M = {}
 
+-- Default configuration
+local config = {
+    space_endwise = false,
+}
+
+-- Setup function to allow user configuration
+function M.setup(opts)
+    config = vim.tbl_extend('force', config, opts or {})
+    require('nvim-treesitter.endwise').set_config(config)
+end
+
+-- Get current configuration
+function M.get_config()
+    return config
+end
+
 function M.init()
     if vim.fn.has('nvim-0.9') == 1 then
         vim.api.nvim_create_autocmd({ 'FileType' }, {
