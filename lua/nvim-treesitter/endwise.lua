@@ -130,7 +130,7 @@ local function endwise(bufnr)
         return
     end
 
-    -- Search up the first the closest non-whitespace text before the cursor
+    -- Search up the closest non-whitespace text before the cursor
     local row, col = unpack(vim.fn.searchpos('\\S', 'nbW'))
     row = row - 1
     col = col - 1
@@ -214,7 +214,7 @@ local function endwise_inline(bufnr)
         return
     end
 
-    -- Search up the first the closest non-whitespace text before the cursor
+    -- Search up the closest non-whitespace text before the cursor
     local row, col = unpack(vim.fn.searchpos('\\S', 'nbW'))
     row = row - 1
     col = col - 1
@@ -325,7 +325,7 @@ end, nil)
 
 -- Handler function for space key (called from keymap)
 function M._handle_space()
-    local bufnr = vim.fn.bufnr()
+    local bufnr = vim.api.nvim_get_current_buf()
     
     if not tracking[bufnr] then 
         return 
