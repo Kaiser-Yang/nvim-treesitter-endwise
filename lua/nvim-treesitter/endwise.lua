@@ -81,7 +81,7 @@ local function add_end_node_inline(end_text)
     local line = vim.fn.getline(crow)
     
     -- Insert one space and the end text at the cursor position
-    -- (The user's space has already been inserted, so we add one more space + end)
+    -- (The keymap inserts '<Space>' first, so we add one more space + end)
     local new_line = string.sub(line, 1, ccol) .. " " .. end_text .. string.sub(line, ccol + 1)
     vim.fn.setline(crow, new_line)
     
@@ -339,10 +339,11 @@ function M._handle_space()
 end
 
 function M.attach(bufnr)
+    local already_tracking = tracking[bufnr]
     tracking[bufnr] = true
     
-    -- Set up space mapping if space_endwise is enabled
-    if config.space_endwise then
+    -- Set up space mapping if space_endwise is enabled and not already set
+    if config.space_endwise and not already_tracking then
         vim.api.nvim_buf_set_keymap(bufnr, 'i', '<Space>', '<Space><Cmd>lua require("nvim-treesitter.endwise")._handle_space()<CR>', {
             noremap = true,
             silent = true,
@@ -352,6 +353,11 @@ end
 
 function M.detach(bufnr)
     tracking[bufnr] = nil
+    
+    -- Remove space mapping if it was set
+    if config.space_endwise then
+        pcall(vim.api.nvim_buf_del_keymap, bufnr, 'i', '<Space>')
+    end
 end
 
 return M
