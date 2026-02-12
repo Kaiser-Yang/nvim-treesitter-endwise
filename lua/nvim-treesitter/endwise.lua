@@ -3,6 +3,14 @@ local indent_regex = vim.regex('\\v^\\s*\\zs\\S')
 local tracking = {}
 -- compatibility shim for breaking change on nightly/0.11
 local opts = vim.fn.has("nvim-0.10") == 1 and { force = true, all = false } or true
+-- Configuration
+local config = {
+    space_endwise = false,
+}
+
+function M.set_config(user_config)
+    config = vim.tbl_extend('force', config, user_config or {})
+end
 
 local function tabstr()
     if vim.bo.expandtab then
@@ -68,6 +76,19 @@ local function lacks_end(node, end_text)
     return false
 end
 
+local function add_end_node_inline(end_text)
+    local crow, ccol = unpack(vim.api.nvim_win_get_cursor(0))
+    local line = vim.fn.getline(crow)
+    
+    -- Insert one space and the end text at the cursor position
+    -- (The keymap inserts '<Space>' first, so we add one more space + end)
+    local new_line = string.sub(line, 1, ccol) .. " " .. end_text .. string.sub(line, ccol + 1)
+    vim.fn.setline(crow, new_line)
+    
+    -- Move cursor to after the space (before 'end')
+    vim.fn.cursor(crow, ccol + 1)
+end
+
 local function add_end_node(indent_node_range, endable_node_range, end_text, shiftcount)
     local crow = unpack(vim.api.nvim_win_get_cursor(0))
     local indentation = strip_leading_whitespace(vim.fn.getline(indent_node_range[1] + 1))
@@ -109,7 +130,7 @@ local function endwise(bufnr)
         return
     end
 
-    -- Search up the first the closest non-whitespace text before the cursor
+    -- Search up the closest non-whitespace text before the cursor
     local row, col = unpack(vim.fn.searchpos('\\S', 'nbW'))
     row = row - 1
     col = col - 1
@@ -181,6 +202,90 @@ local function endwise(bufnr)
     end
 end
 
+local function endwise_inline(bufnr)
+    -- Try getting lang, fallback to filetype
+    local lang = vim.treesitter.language.get_lang and vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or '') or vim.bo[bufnr].filetype
+    if not lang or lang == '' then
+        return
+    end
+
+    local parser, _ = vim.treesitter.get_parser(bufnr, lang, { error = false })
+    if not parser then
+        return
+    end
+
+    -- Search up the closest non-whitespace text before the cursor
+    local row, col = unpack(vim.fn.searchpos('\\S', 'nbW'))
+    row = row - 1
+    col = col - 1
+
+    local lang_tree = parser:language_for_range({ row, col, row, col })
+    lang = lang_tree:lang()
+    if not lang then
+        return
+    end
+
+    local node = vim.treesitter.get_node({
+        bufnr = bufnr,
+        lang = lang,
+        pos = { row, col },
+        ignore_injections = true,
+    })
+    if not node then
+        return
+    end
+
+    local root = node:tree():root()
+    if not root then
+        return
+    end
+
+    local query = vim.treesitter.query.get(lang, 'endwise')
+    if not query then
+        return
+    end
+
+    local range = { root:range() }
+
+    for _, match, metadata in query:iter_matches(root, bufnr, range[1], range[3] + 1, { all = true }) do
+        local cursor_node, endable_node
+        for id, node in pairs(match) do
+            if type(node) == 'table' then
+                node = node[#node]
+            end
+
+            if query.captures[id] == 'cursor' then
+                cursor_node = node
+            elseif query.captures[id] == 'endable' then
+                endable_node = node
+            end
+        end
+
+        if not cursor_node then
+            goto continue
+        end
+
+        local cursor_node_range = { cursor_node:range() }
+        if point_in_range(row, col, cursor_node_range) then
+            local end_node_type = metadata.endwise_end_node_type or metadata.endwise_end_text
+            if not endable_node or lacks_end(endable_node, end_node_type) then
+                local end_text = metadata.endwise_end_text
+                if metadata.endwise_end_suffix then
+                    local suffix = text_for_range({ metadata.endwise_end_suffix:range() })
+                    local s, e = vim.regex(metadata.endwise_end_suffix_pattern):match_str(suffix)
+                    if s then
+                        suffix = string.sub(suffix, s + 1, e)
+                    end
+                    end_text = end_text .. suffix
+                end
+                add_end_node_inline(end_text)
+                return
+            end
+        end
+        ::continue::
+    end
+end
+
 -- #endwise! tree-sitter directive
 -- @param endwise_end_text string end text to add
 -- @param endwise_end_suffix node|nil captured node that contains text to add
@@ -218,12 +323,41 @@ vim.on_key(function(key)
     end)()
 end, nil)
 
+-- Handler function for space key (called from keymap)
+function M._handle_space()
+    local bufnr = vim.api.nvim_get_current_buf()
+    
+    if not tracking[bufnr] then 
+        return 
+    end
+    
+    vim.schedule(function()
+        vim.cmd('doautocmd User PreNvimTreesitterEndwiseSpace')  -- Not currently used
+        endwise_inline(bufnr)
+        vim.cmd('doautocmd User PostNvimTreesitterEndwiseSpace') -- Used in tests to know when to exit Neovim
+    end)
+end
+
 function M.attach(bufnr)
+    local already_tracking = tracking[bufnr]
     tracking[bufnr] = true
+    
+    -- Set up space mapping if space_endwise is enabled and not already set
+    if config.space_endwise and not already_tracking then
+        vim.api.nvim_buf_set_keymap(bufnr, 'i', '<Space>', '<Space><Cmd>lua require("nvim-treesitter.endwise")._handle_space()<CR>', {
+            noremap = true,
+            silent = true,
+        })
+    end
 end
 
 function M.detach(bufnr)
-    tracking[bufnr] = false
+    tracking[bufnr] = nil
+    
+    -- Remove space mapping if it was set
+    if config.space_endwise then
+        pcall(vim.api.nvim_buf_del_keymap, bufnr, 'i', '<Space>')
+    end
 end
 
 return M
