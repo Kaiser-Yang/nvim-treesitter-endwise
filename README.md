@@ -10,6 +10,34 @@ https://user-images.githubusercontent.com/21000943/150613732-442589e2-6b08-4b14-
 
 No configuration is required, just install the plugin and it'll work!
 
+# Configuration
+
+The plugin can be configured using the `setup` function:
+
+```lua
+require('nvim-treesitter-endwise').setup({
+    space_endwise = false,  -- Enable space-triggered endwise (default: false)
+})
+```
+
+## Options
+
+### `space_endwise`
+
+When enabled, pressing space after keywords like `then`, `do`, etc. will automatically insert `end` on the same line.
+
+**Default:** `false`
+
+**Example:** In Lua, typing `if true then` and pressing space will result in `if true then  end` (with two spaces before `end`).
+
+To enable this feature:
+
+```lua
+require('nvim-treesitter-endwise').setup({
+    space_endwise = true,
+})
+```
+
 # About
 
 This is a simple plugin that helps to end certain structures automatically. In Ruby, this means adding end after if, do, def, etc. This even works for languages nested inside other, such as Markdown with a Lua code block!
