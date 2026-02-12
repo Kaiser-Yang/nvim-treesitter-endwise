@@ -16,6 +16,16 @@ function ExecuteCR(n)
     end)
 end
 
+function ExecuteSpace(n)
+    vim.schedule(function ()
+        vim.api.nvim_create_autocmd('User', {
+            pattern = 'PostNvimTreesitterEndwiseSpace',
+            command = "silent wq"
+        })
+        feedkeys(string.rep('l', n)..'a<Space>')
+    end)
+end
+
 function ExecuteCRTwiceAndUndo(n)
     local call_count = 0
     local post_endwise_cb = function()

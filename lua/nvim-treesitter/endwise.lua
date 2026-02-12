@@ -80,12 +80,13 @@ local function add_end_node_inline(end_text)
     local crow, ccol = unpack(vim.api.nvim_win_get_cursor(0))
     local line = vim.fn.getline(crow)
     
-    -- Insert two spaces and the end text at the cursor position
-    local new_line = string.sub(line, 1, ccol) .. "  " .. end_text .. string.sub(line, ccol + 1)
+    -- Insert one space and the end text at the cursor position
+    -- (The user's space has already been inserted, so we add one more space + end)
+    local new_line = string.sub(line, 1, ccol) .. " " .. end_text .. string.sub(line, ccol + 1)
     vim.fn.setline(crow, new_line)
     
-    -- Move cursor to after the two spaces (before 'end')
-    vim.fn.cursor(crow, ccol + 2)
+    -- Move cursor to after the space (before 'end')
+    vim.fn.cursor(crow, ccol + 1)
 end
 
 local function add_end_node(indent_node_range, endable_node_range, end_text, shiftcount)
@@ -202,8 +203,9 @@ local function endwise(bufnr)
 end
 
 local function endwise_inline(bufnr)
-    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or '')
-    if not lang then
+    -- Try getting lang, fallback to filetype
+    local lang = vim.treesitter.language.get_lang and vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or '') or vim.bo[bufnr].filetype
+    if not lang or lang == '' then
         return
     end
 
@@ -321,30 +323,35 @@ vim.on_key(function(key)
     end)()
 end, nil)
 
-vim.on_key(function(key)
-    if key ~= " " then return end
-    if vim.api.nvim_get_mode().mode ~= 'i' then return end
-    if vim.fn.reg_executing() ~= '' or vim.fn.reg_recording() ~= '' then
-        return
+-- Handler function for space key (called from keymap)
+function M._handle_space()
+    local bufnr = vim.fn.bufnr()
+    
+    if not tracking[bufnr] then 
+        return 
     end
-    if not config.space_endwise then
-        return
-    end
-    vim.schedule_wrap(function()
-        local bufnr = vim.fn.bufnr()
-        if not tracking[bufnr] then return end
+    
+    vim.schedule(function()
         vim.cmd('doautocmd User PreNvimTreesitterEndwiseSpace')  -- Not currently used
         endwise_inline(bufnr)
         vim.cmd('doautocmd User PostNvimTreesitterEndwiseSpace') -- Used in tests to know when to exit Neovim
-    end)()
-end, nil)
+    end)
+end
 
 function M.attach(bufnr)
     tracking[bufnr] = true
+    
+    -- Set up space mapping if space_endwise is enabled
+    if config.space_endwise then
+        vim.api.nvim_buf_set_keymap(bufnr, 'i', '<Space>', '<Space><Cmd>lua require("nvim-treesitter.endwise")._handle_space()<CR>', {
+            noremap = true,
+            silent = true,
+        })
+    end
 end
 
 function M.detach(bufnr)
-    tracking[bufnr] = false
+    tracking[bufnr] = nil
 end
 
 return M
