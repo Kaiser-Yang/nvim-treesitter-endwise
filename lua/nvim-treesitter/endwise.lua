@@ -68,11 +68,19 @@ local function lacks_end(node, end_text)
     return false
 end
 
-local function add_end_node(indent_node_range, endable_node_range, end_text, shiftcount)
-    local crow = unpack(vim.api.nvim_win_get_cursor(0))
+local function add_end_node(indent_node_range, endable_node_range, end_text, shiftcount, key)
+    local crow, ccol = unpack(vim.api.nvim_win_get_cursor(0))
     local indentation = strip_leading_whitespace(vim.fn.getline(indent_node_range[1] + 1))
 
     local line = vim.fn.getline(crow)
+
+    if key == " " then
+        local before_cursor = string.sub(line, 1, ccol)
+        local after_cursor = string.sub(line, ccol + 1)
+        vim.fn.setline(crow, before_cursor .. " " .. end_text .. after_cursor)
+        return
+    end
+
     local trailing_cursor_text, trailing_end_text
     if endable_node_range == nil or crow - 1 < endable_node_range[3] then
         local _, trailing_text = strip_leading_whitespace(line)
@@ -98,7 +106,7 @@ local function add_end_node(indent_node_range, endable_node_range, end_text, shi
     vim.fn.cursor(crow, #cursor_indentation + 1)
 end
 
-local function endwise(bufnr)
+local function endwise(bufnr, key)
     local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or '')
     if not lang then
         return
@@ -174,7 +182,7 @@ local function endwise(bufnr)
                     end_text = end_text .. suffix
                 end
                 local endable_node_range = endable_node and { endable_node:range() } or nil
-                add_end_node(indent_node_range, endable_node_range, end_text, metadata.endwise_shiftcount)
+                add_end_node(indent_node_range, endable_node_range, end_text, metadata.endwise_shiftcount, key)
                 return
             end
         end
@@ -204,7 +212,7 @@ vim.treesitter.query.add_directive('endwise!', function(match, _, _, predicate, 
 end, opts)
 
 vim.on_key(function(key)
-    if key ~= "\r" then return end
+    if key ~= "\r" and key ~= " " then return end
     if vim.api.nvim_get_mode().mode ~= 'i' then return end
     if vim.fn.reg_executing() ~= '' or vim.fn.reg_recording() ~= '' then
         return
@@ -213,7 +221,7 @@ vim.on_key(function(key)
         local bufnr = vim.fn.bufnr()
         if not tracking[bufnr] then return end
         vim.cmd('doautocmd User PreNvimTreesitterEndwiseCR')  -- Not currently used
-        endwise(bufnr)
+        endwise(bufnr, key)
         vim.cmd('doautocmd User PostNvimTreesitterEndwiseCR') -- Used in tests to know when to exit Neovim
     end)()
 end, nil)
