@@ -1,5 +1,5 @@
 local M = {}
-local indent_regex = vim.regex('\\v^\\s*\\zs\\S')
+local indent_regex = vim.regex("\\v^\\s*\\zs\\S")
 local tracking = {}
 -- compatibility shim for breaking change on nightly/0.11
 local opts = vim.fn.has("nvim-0.10") == 1 and { force = true, all = false } or true
@@ -22,8 +22,12 @@ local function text_for_range(range)
 end
 
 local function point_in_range(row, col, range)
-    return not (row < range[1] or row == range[1] and col < range[2]
-        or row > range[3] or row == range[3] and col >= range[4])
+    return not (
+        row < range[1]
+        or row == range[1] and col < range[2]
+        or row > range[3]
+        or row == range[3] and col >= range[4]
+    )
 end
 
 local function strip_leading_whitespace(line)
@@ -33,7 +37,7 @@ local function strip_leading_whitespace(line)
         local text = string.sub(line, indent_end + 1)
         return indentation, text
     else
-        return line, ''
+        return line, ""
     end
 end
 
@@ -107,7 +111,7 @@ local function add_end_node(indent_node_range, endable_node_range, end_text, shi
 end
 
 local function endwise(bufnr, key)
-    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or '')
+    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype or "")
     if not lang then
         return
     end
@@ -118,7 +122,7 @@ local function endwise(bufnr, key)
     end
 
     -- Search up the first the closest non-whitespace text before the cursor
-    local row, col = unpack(vim.fn.searchpos('\\S', 'nbW'))
+    local row, col = unpack(vim.fn.searchpos("\\S", "nbW"))
     row = row - 1
     col = col - 1
 
@@ -127,7 +131,6 @@ local function endwise(bufnr, key)
     if not lang then
         return
     end
-
 
     local node = vim.treesitter.get_node({
         bufnr = bufnr,
@@ -144,7 +147,7 @@ local function endwise(bufnr, key)
         return
     end
 
-    local query = vim.treesitter.query.get(lang, 'endwise')
+    local query = vim.treesitter.query.get(lang, "endwise")
     if not query then
         return
     end
@@ -154,15 +157,15 @@ local function endwise(bufnr, key)
     for _, match, metadata in query:iter_matches(root, bufnr, range[1], range[3] + 1, { all = true }) do
         local indent_node, cursor_node, endable_node
         for id, node in pairs(match) do
-            if type(node) == 'table' then
+            if type(node) == "table" then
                 node = node[#node]
             end
 
-            if query.captures[id] == 'indent' then
+            if query.captures[id] == "indent" then
                 indent_node = node
-            elseif query.captures[id] == 'cursor' then
+            elseif query.captures[id] == "cursor" then
                 cursor_node = node
-            elseif query.captures[id] == 'endable' then
+            elseif query.captures[id] == "endable" then
                 endable_node = node
             end
         end
@@ -203,26 +206,32 @@ end
 --  defaults to 1
 -- @param endwise_end_suffix_pattern string regex pattern to apply onto
 --  endwise_end_suffix, defaults to matching the whole string
-vim.treesitter.query.add_directive('endwise!', function(match, _, _, predicate, metadata)
+vim.treesitter.query.add_directive("endwise!", function(match, _, _, predicate, metadata)
     metadata.endwise_end_text = predicate[2]
     metadata.endwise_end_suffix = match[predicate[3]]
     metadata.endwise_end_node_type = predicate[4]
     metadata.endwise_shiftcount = predicate[5] or 1
-    metadata.endwise_end_suffix_pattern = predicate[6] or '^.*$'
+    metadata.endwise_end_suffix_pattern = predicate[6] or "^.*$"
 end, opts)
 
 vim.on_key(function(key)
-    if key ~= "\r" and key ~= " " then return end
-    if vim.api.nvim_get_mode().mode ~= 'i' then return end
-    if vim.fn.reg_executing() ~= '' or vim.fn.reg_recording() ~= '' then
+    if key ~= "\r" and key ~= " " then
+        return
+    end
+    if vim.api.nvim_get_mode().mode ~= "i" then
+        return
+    end
+    if vim.fn.reg_executing() ~= "" or vim.fn.reg_recording() ~= "" then
         return
     end
     vim.schedule_wrap(function()
         local bufnr = vim.fn.bufnr()
-        if not tracking[bufnr] then return end
-        vim.cmd('doautocmd User PreNvimTreesitterEndwiseCR')  -- Not currently used
+        if not tracking[bufnr] then
+            return
+        end
+        vim.cmd("doautocmd User PreNvimTreesitterEndwiseCR") -- Not currently used
         endwise(bufnr, key)
-        vim.cmd('doautocmd User PostNvimTreesitterEndwiseCR') -- Used in tests to know when to exit Neovim
+        vim.cmd("doautocmd User PostNvimTreesitterEndwiseCR") -- Used in tests to know when to exit Neovim
     end)()
 end, nil)
 
