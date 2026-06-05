@@ -81,7 +81,7 @@ local function add_end_node(indent_node_range, endable_node_range, end_text, shi
     if key == " " then
         local before_cursor = string.sub(line, 1, ccol)
         local after_cursor = string.sub(line, ccol + 1)
-        vim.fn.setline(crow, before_cursor .. " " .. end_text .. after_cursor)
+        vim.fn.setline(crow, before_cursor .. after_cursor .. " " .. end_text)
         return
     end
 
