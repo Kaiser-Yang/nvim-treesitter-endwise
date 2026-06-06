@@ -73,15 +73,13 @@ local function lacks_end(node, end_text)
 end
 
 local function add_end_node(indent_node_range, endable_node_range, end_text, shiftcount, key)
-    local crow, ccol = unpack(vim.api.nvim_win_get_cursor(0))
+    local crow = vim.api.nvim_win_get_cursor(0)[1]
     local indentation = strip_leading_whitespace(vim.fn.getline(indent_node_range[1] + 1))
 
     local line = vim.fn.getline(crow)
 
     if key == " " then
-        local before_cursor = string.sub(line, 1, ccol)
-        local after_cursor = string.sub(line, ccol + 1)
-        vim.fn.setline(crow, before_cursor .. after_cursor .. " " .. end_text)
+        vim.fn.setline(crow, line .. " " .. end_text)
         return
     end
 
